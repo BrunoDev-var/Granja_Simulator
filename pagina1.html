@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html data-theme="light">
+<head>
+    <title>Mi Granjita 🌾</title>
+    <style>
+        [data-theme="light"] {
+            --bg-main: #f0f7f4;
+            --bg-container: white;
+            --bg-output: #fff9eb;
+            --text-color: #5a5a5a;
+            --border-color: #e6d5b8;
+            --stat-bg: #e8f3e9;
+            --title-color: #4a7350;
+            --input-border: #b8d8be;
+            --shadow-color: rgba(0,0,0,0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-main: #1a1a1a;
+            --bg-container: #2d2d2d;
+            --bg-output: #363636;
+            --text-color: #e0e0e0;
+            --border-color: #404040;
+            --stat-bg: #404040;
+            --title-color: #8bc34a;
+            --input-border: #505050;
+            --shadow-color: rgba(0,0,0,0.3);
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            transition: all 0.3s ease;
+            margin: 0;
+        }
+
+        #game-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: var(--bg-container);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px var(--shadow-color);
+        }
+
+        #game-output {
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: var(--bg-output);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        #command-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--input-border);
+            border-radius: 8px;
+            font-size: 16px;
+            color: var(--text-color);
+            background-color: var(--bg-output);
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background-color: var(--stat-bg);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+
+        .game-title {
+            text-align: center;
+            color: var(--title-color);
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        #theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            background-color: var(--stat-bg);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        #theme-toggle:hover {
+            transform: scale(1.05);
+        }
+
+        .message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 8px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-message {
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+
+        .error-message {
+            background-color: rgba(244, 67, 54, 0.1);
+        }
+
+        .info-message {
+            background-color: rgba(33, 150, 243, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <button id="theme-toggle">🌙 Modo Oscuro</button>
+    <div id="game-container">
+        <div class="game-title">🌾 Mi Pequeña Granja 🌾</div>
+        <div class="stats-container">
+            <div class="stat-box">💰 Dinero: $<span id="money">100</span></div>
+            <div class="stat-box">🌱 Semillas: <span id="seeds">5</span></div>
+            <div class="stat-box">📅 Día: <span id="day">1</span></div>
+            <div class="stat-box">⚡ Energía: <span id="energy">100</span></div>
+        </div>
+        <div id="game-output"></div>
+        <input type="text" 
+               id="command-input" 
+               placeholder="¿Qué quieres hacer? Escribe 'ayuda' para ver las opciones" 
+               autocomplete="off">
+    </div>
+
+    <script>
+        // Estado del juego
+        const gameState = {
+            money: 100,
+            seeds: 5,
+            day: 1,
+            energy: 100,
+            crops: {},
+            inventory: {}
+        };
+
+        // Tipos de cultivos
+        const cropTypes = {
+            zanahoria: {
+                growthTime: 3,
+                value: 15,
+                seedCost: 5,
+                emoji: '🥕'
+            },
+            tomate: {
+                growthTime: 4,
+                value: 20,
+                seedCost: 8,
+                emoji: '🍅'
+            },
+            maiz: {
+                growthTime: 5,
+                value: 25,
+                seedCost: 10,
+                emoji: '🌽'
+            }
+        };
+
+        // Comandos del juego
+        const commands = {
+            ayuda: () => {
+                printMessage(`
+                    📋 Acciones disponibles:
+                    • plantar [cultivo] [cantidad] - Planta tus semillas
+                    • estado - Ver estado de tus cultivos
+                    • cosechar [cultivo] - Recoge tus cultivos maduros
+                    • tienda - Ver la tienda
+                    • comprar [item] [cantidad] - Comprar semillas
+                    • dormir - Pasar al siguiente día
+                    • inventario - Ver tus pertenencias
+                `, 'info');
+            },
+
+            plantar: (crop, amount = 1) => {
+                amount = parseInt(amount);
+                if (!cropTypes[crop]) {
+                    printMessage(`❌ Cultivo no válido. Cultivos disponibles: ${Object.keys(cropTypes).join(', ')}`, 'error');
+                    return;
+                }
+                if (gameState.seeds < amount) {
+                    printMessage('❌ No tienes suficientes semillas', 'error');
+                    return;
+                }
+                
+                gameState.seeds -= amount;
+                gameState.crops[crop] = gameState.crops[crop] || [];
+                for (let i = 0; i < amount; i++) {
+                    gameState.crops[crop].push({
+                        daysGrown: 0,
+                        isReady: false
+                    });
+                }
+                
+                printMessage(`🌱 Has plantado ${amount} ${crop}(s)`, 'success');
+                updateDisplay();
+            },
+
+            estado: () => {
+                let message = '🌱 Estado de tus cultivos:\n';
+                for (const [crop, plants] of Object.entries(gameState.crops)) {
+                    if (plants.length > 0) {
+                        const readyPlants = plants.filter(p => p.isReady).length;
+                        message += `${cropTypes[crop].emoji} ${crop}: ${plants.length} plantados, ${readyPlants} listos para cosechar\n`;
+                    }
+                }
+                printMessage(message, 'info');
+            },
+
+            dormir: () => {
+                gameState.day++;
+                gameState.energy = 100;
+                
+                // Hacer crecer los cultivos
+                for (const [crop, plants] of Object.entries(gameState.crops)) {
+                    plants.forEach(plant => {
+                        plant.daysGrown++;
+                        if (plant.daysGrown >= cropTypes[crop].growthTime) {
+                            plant.isReady = true;
+                        }
+                    });
+                }
+
+                printMessage('😴 Has dormido hasta el siguiente día', 'success');
+                updateDisplay();
+            },
+
+            tienda: () => {
+                let message = '🏪 Tienda de semillas:\n';
+                for (const [crop, info] of Object.entries(cropTypes)) {
+                    message += `${info.emoji} ${crop}: $${info.seedCost} (Cosecha: $${info.value})\n`;
+                }
+                printMessage(message, 'info');
+            },
+
+            comprar: (crop, amount = 1) => {
+                amount = parseInt(amount);
+                if (!cropTypes[crop]) {
+                    printMessage('❌ Ese producto no existe en la tienda', 'error');
+                    return;
+                }
+
+                const totalCost = cropTypes[crop].seedCost * amount;
+                if (gameState.money < totalCost) {
+                    printMessage('❌ No tienes suficiente dinero', 'error');
+                    return;
+                }
+
+                gameState.money -= totalCost;
+                gameState.seeds += amount;
+                printMessage(`✨ Has comprado ${amount} semillas de ${crop} por $${totalCost}`, 'success');
+                updateDisplay();
+            }
+        };
+
+        // Funciones auxiliares
+        function printMessage(message, type = 'info') {
+            const output = document.getElementById('game-output');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            messageDiv.innerHTML = message.trim();
+            output.appendChild(messageDiv);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function updateDisplay() {
+            document.getElementById('money').textContent = gameState.money;
+            document.getElementById('seeds').textContent = gameState.seeds;
+            document.getElementById('day').textContent = gameState.day;
+            document.getElementById('energy').textContent = gameState.energy;
+        }
+
+        // Tema oscuro
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            themeToggle.textContent = newTheme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro';
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // Cargar tema guardado
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        themeToggle.textContent = savedTheme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro';
+
+        // Sistema de comandos
+        document.getElementById('command-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const input = e.target.value.trim();
+                if (input) {
+                    const [command, ...args] = input.toLowerCase().split(' ');
+                    if (commands[command]) {
+                        commands[command](...args);
+                    } else {
+                        printMessage('❌ Comando no reconocido. Escribe "ayuda" para ver las opciones.', 'error');
+                    }
+                    e.target.value = '';
+                }
+            }
+        });
+
+        // Mensaje inicial
+        printMessage(`
+            🌟 ¡Bienvenido a tu nueva granja! 🌟
+            
+            Aquí podrás cultivar diferentes plantas, cuidar animales
+            y crear tu propio paraíso agrícola.
+
+            Para empezar, escribe 'ayuda' y descubre todo lo que puedes hacer.
+            
+            ¡Que te diviertas! 🌱
+        `, 'success');
+    </script>
+</body>
+</html>
